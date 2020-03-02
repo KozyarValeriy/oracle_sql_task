@@ -1,0 +1,326 @@
+
+
+-- Объявление пакета
+CREATE OR REPLACE PACKAGE BOOKING_GENERATOR IS
+    PROCEDURE FILL_HOTEL(count_hotels IN NUMBER);
+    PROCEDURE GET_RANDOM_UNTIL_CEILING (max_id IN NUMBER, result_id OUT NUMBER);
+	PROCEDURE FILL_BOOKING (count_booking IN NUMBER, start_time IN DATE);
+	PROCEDURE GET_NEXT_DATE (step IN NUMBER, new_date IN OUT DATE);
+	PROCEDURE CHANGE_ROW_IN_HOTEL (count_to_change IN NUMBER);
+	
+	-- FUNCTION IS_REPEATED_GUEST RETURN NUMBER;
+	-- PROCEDURE GET_HOTEL (max_hotel_id IN OUT NUMBER);
+END BOOKING_GENERATOR;
+
+
+-- Создание тела пакета
+CREATE OR REPLACE PACKAGE BODY BOOKING_GENERATOR IS
+	------------------------------------------------------------------------------
+	--------------------------------- Константы ----------------------------------
+	------------------------------------------------------------------------------
+    PROGRAM_NAME CONSTANT VARCHAR2(20) := 'BOOKING_GENERATOR';
+	
+	
+    ------------------------------------------------------------------------------
+    ------------------------- Процедура для записи логов -------------------------
+    ------------------------------------------------------------------------------
+    PROCEDURE write_log (level_log IN VARCHAR2, program_name IN VARCHAR2, 
+						 procedure_name IN VARCHAR2, message IN VARCHAR2) IS
+        -- включение автономных транзакций
+        PRAGMA AUTONOMOUS_TRANSACTION;
+    BEGIN
+        insert into log_table values (systimestamp, level_log, program_name, 
+									  procedure_name, message);
+        commit;
+	EXCEPTION WHEN others THEN
+		NULL;
+    END write_log;
+
+
+    ------------------------------------------------------------------------------
+    --------------------- Процедура наполнения таблицы HOTEL ---------------------
+    ------------------------------------------------------------------------------
+    PROCEDURE FILL_HOTEL(count_hotels IN NUMBER) IS
+        hotel_id             NUMBER;
+        new_hotel_name       VARCHAR2(40); 
+        country_id           NUMBER; 
+        room_count           NUMBER;
+        max_country_id       NUMBER;
+		
+		overflow             NUMBER;
+		counter              NUMBER;
+		flag                 NUMBER(1);
+		-- данные для записи логов
+        procedure_name       VARCHAR2(100) := 'FILL_HOTEL';
+        message              VARCHAR2(1000);
+    BEGIN
+		-- Получение максимально возможного id страны
+        select max(country_id) into max_country_id from country;
+		-- Блокировка таблицы, чтобы исключить одновременную вставку, такого
+		-- как при этом могут появиться дубли имен отелей
+		LOCK TABLE HOTEL IN EXCLUSIVE MODE;
+		overflow := 0;
+		-- Запись указанного кол-ва отелей
+		FOR current_numb IN 1..count_hotels loop
+			-- Получаем рандомную страну
+			GET_RANDOM_UNTIL_CEILING(max_country_id, country_id);
+			-- Генерация имени отеля без повторения
+			flag := 0; 		-- Индикатор, есть ли новое имя в таблице
+			counter := 0; 	-- Счетчик попыток
+			WHILE flag = 0 LOOP
+				new_hotel_name := 'Hotel "'||DBMS_RANDOM.STRING('u', 6)||'"';
+				-- Проверка, если ли такое имя
+				select CASE WHEN exists(select * from hotel 
+										where hotel_name = new_hotel_name)
+							THEN 0
+							ELSE 1
+						END
+					INTO flag
+					from dual;
+				-- Выход из цикла, если такого отеля еще нет
+				EXIT WHEN flag = 1;
+				-- Если такой отель есть, то пишем в лог 
+				message := 'Hotel "'||new_hotel_name||'" already exist!';
+				write_log('DEBAG', PROGRAM_NAME, procedure_name, message);
+				-- Увеличиваем счетчик, чтобы не зациклиться.
+				-- То есть, если имя отеля уже есть и такое происходит 1000 раз подряд, то
+				-- считаем, что справочник отелей заполнен (больше отели добавлять нельзя).
+				counter := counter + 1;
+				IF counter >= 1000 THEN
+					message := 'All '||TO_CHAR(counter)||' attempts was wrong';
+					write_log('ERROR', PROGRAM_NAME, procedure_name, message);
+					overflow := current_numb - 1; -- запоминаем уол-во удачных вставок
+					EXIT;
+				END IF;
+			END LOOP;
+			EXIT WHEN overflow > 0; -- Выходим, если было много попыток неудачной вставки
+			insert into hotel values(HOTEL_S.NEXTVAL, new_hotel_name, 
+									 country_id, trunc(DBMS_RANDOM.VALUE(6, 20)));
+		END LOOP;
+		commit;
+		-- Делаем запись в лог об успешном добалении отелей
+		IF count_hotels > 0 THEN
+			IF overflow > 0 THEN
+				message := 'Successful writing of '||TO_CHAR(overflow)||' new Hotels';
+				insert into session_activity values('HOTEL', 'INSERT', overflow);
+			ELSE
+				message := 'Successful writing of '||TO_CHAR(count_hotels)||' new Hotels';
+				insert into session_activity values('HOTEL', 'INSERT', count_hotels);
+			END IF;
+            write_log('INFO', PROGRAM_NAME, procedure_name, message);
+		END IF;
+    EXCEPTION WHEN others THEN
+        message := TO_CHAR(sqlcode)||'-'||sqlerrm||'. '||dbms_utility.format_error_backtrace;
+        write_log('ERROR', PROGRAM_NAME, procedure_name, message);
+    END FILL_HOTEL;
+
+
+    -----------------------------------------------------------------------------
+    ------------ Процедура для получения рандомного числа от 1 до max -----------
+    -----------------------------------------------------------------------------
+    PROCEDURE GET_RANDOM_UNTIL_CEILING (max_id IN NUMBER, result_id OUT NUMBER) IS     
+		-- данные для записи логов
+        procedure_name       VARCHAR2(100) := 'GET_RANDOM_UNTIL_CEILING';
+        message              VARCHAR2(1000);
+
+    BEGIN
+		result_id := trunc(DBMS_RANDOM.VALUE(1, max_id + 1));
+    EXCEPTION WHEN others THEN
+        message := TO_CHAR(sqlcode)||'-'||sqlerrm||'. '||dbms_utility.format_error_backtrace;
+        write_log('ERROR', PROGRAM_NAME, procedure_name, message);
+    END GET_RANDOM_UNTIL_CEILING;
+	
+	
+	-----------------------------------------------------------------------------
+    ----------------- Функция для получения, был ли гость ранее -----------------
+    -----------------------------------------------------------------------------
+    FUNCTION IS_REPEATED_GUEST RETURN NUMBER IS 
+	
+		probability			 NUMBER;
+		return_value		 NUMBER;
+		
+		-- данные для записи логов
+        procedure_name       VARCHAR2(100) := 'IS_REPEATED_GUEST';
+        message              VARCHAR2(1000);
+    BEGIN
+		probability := trunc(dbms_random.value(1, 6));
+		CASE 
+			WHEN probability <= 3 THEN
+				RETURN 0;
+			ELSE
+				RETURN 1;
+		END CASE;
+    EXCEPTION WHEN others THEN
+        message := TO_CHAR(sqlcode)||'-'||sqlerrm||'. '||dbms_utility.format_error_backtrace;
+        write_log('ERROR', PROGRAM_NAME, procedure_name, message);
+    END IS_REPEATED_GUEST;
+	
+	
+	-----------------------------------------------------------------------------
+    -------------------- Процедура наполнения таблицы BOOKING -------------------
+    -----------------------------------------------------------------------------
+	PROCEDURE FILL_BOOKING (count_booking IN NUMBER, start_time IN DATE) IS
+        hotel_id             		NUMBER;
+		arrival_date                DATE;                  
+		adults                      NUMBER;                       
+		meal_id                     NUMBER;            
+		country_id                  NUMBER;           
+		distribution_channel_id     NUMBER;             
+		room_type_id                NUMBER;            
+		agent                       NUMBER;             
+		deposit_type_id             NUMBER;            
+		required_car_parking_spaces NUMBER;
+		is_repeat					NUMBER(1);
+
+
+		-- Ассоциативный массив
+		TYPE meal_type IS TABLE OF NUMBER INDEX BY BINARY_INTEGER;
+		meal               			meal_type;
+		
+		-- Вложенная таблица
+	 	TYPE dist_channel_type IS TABLE OF NUMBER;
+        dist_channel 			dist_channel_type := dist_channel_type();
+		
+		-- Массив VARRAY
+		TYPE deposit_type IS VARRAY(3) OF NUMBER;
+		deposit  					deposit_type := deposit_type(1, 2, 3);
+		
+        max_country_id       		NUMBER;
+		max_hotel_id       			NUMBER;
+		max_room_type_id       		NUMBER;
+		step						NUMBER;
+		date_by_step				DATE;
+		-- Исключение
+		start_date_error 			EXCEPTION;
+		PRAGMA EXCEPTION_INIT (start_date_error, -365);
+		
+		-- данные для записи логов
+        procedure_name       VARCHAR2(100) := 'FILL_BOOKING';
+        message              VARCHAR2(1000);
+    BEGIN
+		meal(1) := 1;
+		meal(2) := 2;
+		meal(3) := 3;
+		
+		dist_channel.EXTEND(4);
+		FOR i IN 1..4 LOOP
+			dist_channel(i) := i;
+		END LOOP;
+		
+		-- Получение максимально возможного id страны, отеля, комнаты
+        select max(country_id) into max_country_id from country;
+		select max(hotel_id) into max_hotel_id from hotel;
+		select max(room_type_id) into max_room_type_id from room;
+		
+		-- Получаем шаг для даты
+		-- step := (SYSDATE - start_time) / count_booking;
+		select (SYSDATE - start_time) / count_booking into step from dual;
+		-- start_time := SYSDATE - start_time;
+		date_by_step := start_time;
+		IF step < 0 THEN
+			RAISE start_date_error;
+		END IF;
+		FOR i in 1..count_booking LOOP
+			-- Получаем рандомную страну
+			GET_RANDOM_UNTIL_CEILING(max_country_id, country_id);
+			-- Получаем рандомный отель
+			GET_RANDOM_UNTIL_CEILING(max_hotel_id, hotel_id);
+			-- Получаем тип комнаты
+			GET_RANDOM_UNTIL_CEILING(max_room_type_id, room_type_id);
+			
+			adults := trunc(dbms_random.value(1, 5));
+			meal_id := meal(trunc(dbms_random.value(1, meal.count + 1)));
+			distribution_channel_id := dist_channel(trunc(dbms_random.value(1, dist_channel.count + 1)));
+			
+			deposit_type_id := deposit(trunc(dbms_random.value(1, deposit.count + 1)));
+			is_repeat := IS_REPEATED_GUEST();
+			insert into booking values (hotel_id, 
+										decode(trunc(dbms_random.value(1, 6)), 1, 0, 2, 0, 3, 0, 4, 0,
+																			   5, 1), -- is_canceled
+										trunc(dbms_random.value(20, 250)), --lead_time
+										date_by_step,
+										trunc(dbms_random.value(1, 21)), -- stays_in_nights
+										adults, -- adult
+										trunc(dbms_random.value(1, 3)), -- children
+										trunc(dbms_random.value(0, 2)), -- babies
+										meal_id, 
+										country_id,
+										distribution_channel_id,
+										is_repeat,
+										room_type_id,
+										trunc(dbms_random.value(1, 500)), -- id агента
+										deposit_type_id, 
+										trunc(dbms_random.value(0, adults + 1)) -- кол-во требуемых мест для парковки					
+			);
+			-- получаем следующую дату
+			GET_NEXT_DATE(step, date_by_step);
+		END LOOP;
+		commit;
+		message := 'Successful writing of '||TO_CHAR(count_booking)||' new events';
+		write_log('INFO', PROGRAM_NAME, procedure_name, message);
+		insert into session_activity values('BOOKING', 'INSERT', count_booking);
+	 EXCEPTION 
+		 WHEN start_date_error THEN
+			message := 'Start date must be less, then current date';
+			write_log('ERROR', PROGRAM_NAME, procedure_name, message);	
+		 WHEN others THEN
+			message := TO_CHAR(sqlcode)||'-'||sqlerrm||'. '||dbms_utility.format_error_backtrace;
+			write_log('ERROR', PROGRAM_NAME, procedure_name, message);	
+	END FILL_BOOKING;
+	
+	
+	-----------------------------------------------------------------------------
+    ------------------- Процедура для получения следующей даты ------------------
+    -----------------------------------------------------------------------------
+    PROCEDURE GET_NEXT_DATE (step IN NUMBER, new_date IN OUT DATE) IS     
+		-- данные для записи логов
+        procedure_name       VARCHAR2(100) := 'GET_NEXT_DATE';
+        message              VARCHAR2(1000);
+
+    BEGIN
+		new_date := new_date + step;
+    EXCEPTION WHEN others THEN
+        message := TO_CHAR(sqlcode)||'-'||sqlerrm||'. '||dbms_utility.format_error_backtrace;
+        write_log('ERROR', PROGRAM_NAME, procedure_name, message);
+    END GET_NEXT_DATE;
+	
+	
+	-----------------------------------------------------------------------------
+    ---------------- Процедура изменения значений в таблице hotel ---------------
+    -----------------------------------------------------------------------------
+    PROCEDURE CHANGE_ROW_IN_HOTEL (count_to_change IN NUMBER) IS    
+		min_id				 NUMBER;
+		rows_changed		 NUMBER;
+		-- данные для записи логов
+        procedure_name       VARCHAR2(100) := 'CHANGE_ROW_IN_HOTEL';
+        message              VARCHAR2(1000);
+
+    BEGIN
+		select min(hotel_id) into min_id from hotel;
+		-- Блокировка строк, которые будут изменяться
+		-- select room_count from hotel where hotel_id < count_to_change + min_id for update nowait;
+		EXECUTE IMMEDIATE 'select room_count from hotel where hotel_id < '||TO_CHAR(count_to_change + min_id)||' for update nowait';
+		
+		update hotel set room_count = room_count + 1 where hotel_id < count_to_change + min_id;
+		
+		commit;
+		-- Получаем кол-во измененных строк
+		select count(hotel_id) into rows_changed from hotel where hotel_id < count_to_change + min_id;
+		-- Запись в лог и временную таблицы
+		insert into session_activity values('HOTEL', 'UPDATE', rows_changed);
+		message := 'Updated '||TO_CHAR(rows_changed)||' rows';
+		write_log('INFO', PROGRAM_NAME, procedure_name, message);
+    EXCEPTION
+		WHEN others THEN
+			IF sqlcode = -54 THEN
+				message := 'Данные заблокированны другой процедурой!';
+				write_log('ERROR', PROGRAM_NAME, procedure_name, message);
+			ELSE
+				message := TO_CHAR(sqlcode)||'-'||sqlerrm||'. '||dbms_utility.format_error_backtrace;
+				write_log('ERROR', PROGRAM_NAME, procedure_name, message);
+			END IF;
+    END CHANGE_ROW_IN_HOTEL;
+	
+END BOOKING_GENERATOR;
+
+

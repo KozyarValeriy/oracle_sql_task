@@ -1,0 +1,16 @@
+-- удаление таблицы
+BEGIN
+    EXECUTE IMMEDIATE 'drop table hotel';
+EXCEPTION 
+    WHEN others THEN
+        NULL;
+END;
+
+
+create table hotel (
+    hotel_id        NUMBER,
+    hotel_name      VARCHAR2(50),
+    country_id      NUMBER,
+    room_count      NUMBER,
+    CONSTRAINT hotel_id_pk PRIMARY KEY (hotel_id)
+    );

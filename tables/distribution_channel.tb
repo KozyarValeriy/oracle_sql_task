@@ -1,0 +1,14 @@
+-- удаление таблицы
+BEGIN
+    EXECUTE IMMEDIATE 'drop table distribution_channel';
+EXCEPTION 
+    WHEN others THEN
+        NULL;
+END;
+
+
+create table distribution_channel (
+    distribution_channel_id        NUMBER,
+    distribution_channel_type      VARCHAR2(50),
+    CONSTRAINT distribution_channel_id_pk PRIMARY KEY (distribution_channel_id)
+    );

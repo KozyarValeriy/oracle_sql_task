@@ -1,0 +1,14 @@
+-- удаление таблицы
+BEGIN
+    EXECUTE IMMEDIATE 'drop table room';
+EXCEPTION 
+    WHEN others THEN
+        NULL;
+END;
+
+
+create table room (
+    room_type_id        NUMBER,
+    room_type           VARCHAR2(50),
+    CONSTRAINT room_type_id_pk PRIMARY KEY (room_type_id)
+    );

@@ -1,0 +1,31 @@
+-- удаление таблицы
+BEGIN
+    EXECUTE IMMEDIATE 'drop table booking';
+EXCEPTION 
+    WHEN others THEN
+        NULL;
+END;
+
+
+create table booking (
+    hotel_id                    NUMBER NOT NULL,    -- id отеля
+    is_canceled                 NUMBER(1) NOT NULL, -- было ли отменено бронирование (1 - да)
+    lead_time                   NUMBER,             -- кол-во дней, прошедших со дня брониварония и до прибытия
+    arrival_date                DATE,               -- дата заезда
+    stays_in_nights             NUMBER,             -- кол-во ночей
+    adults                      NUMBER,             -- кол-во взрослых
+    children                    NUMBER,             -- кол-во детей
+    babies                      NUMBER,             -- кол-во младенцев
+    meal_id                     NUMBER,             -- id типа еды
+    country_id                  NUMBER,             -- id страны, откуда приехали
+    distribution_channel_id     NUMBER,             -- id канала бронирования
+    is_repeated_guest           NUMBER(1) NOT NULL, -- 1 если уже были в отеле раньше
+    room_type_id                NUMBER,             -- id типа комнаты
+    agent                       NUMBER,             -- id агента (если был)
+    deposit_type_id             NUMBER,             -- id вида депозита
+    required_car_parking_spaces NUMBER,             -- кол-во требуемых мест для парковки
+    -- проверки для логических столбцов
+    CHECK (is_canceled IN (0, 1)),
+    CHECK (is_repeated_guest IN (0, 1))
+    );
+

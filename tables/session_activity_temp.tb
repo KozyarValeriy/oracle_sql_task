@@ -1,0 +1,8 @@
+-- Временная таблица, которая сохраняет показатели по сессии
+-- В таблицу записываться имя таблицы, в которуб была вставка, 
+-- и кол-во строк, которые были вставлены 
+CREATE GLOBAL TEMPORARY TABLE session_activity (
+    table_name VARCHAR2(100),
+	type_change VARCHAR2(10),
+    new_row NUMBER) 
+ON COMMIT PRESERVE ROWS;

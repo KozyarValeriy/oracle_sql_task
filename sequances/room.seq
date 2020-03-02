@@ -1,0 +1,12 @@
+BEGIN
+    EXECUTE IMMEDIATE 'drop SEQUENCE room_s';
+EXCEPTION 
+    WHEN others THEN
+        NULL;
+END;
+
+CREATE SEQUENCE room_s
+    MINVALUE 1
+    START WITH 1
+    INCREMENT BY 1
+    NOCACHE;

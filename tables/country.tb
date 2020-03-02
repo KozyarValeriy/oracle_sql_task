@@ -1,0 +1,16 @@
+-- удаление таблицы
+BEGIN
+    EXECUTE IMMEDIATE 'drop table country';
+EXCEPTION 
+    WHEN others THEN
+        NULL;
+END;
+
+-- создание таблицы
+create table country (
+    country_id      NUMBER,
+    country_name    VARCHAR2(50),
+    CONSTRAINT country_id_pk PRIMARY KEY (country_id)
+    );
+
+
