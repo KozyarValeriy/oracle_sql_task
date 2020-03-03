@@ -1,0 +1,13 @@
+-- Триггер, который записывает ошибки в таблицу log_error
+CREATE OR REPLACE TRIGGER collect_errors
+    AFTER INSERT ON log_table         -- срабатывает после вставки в log_table
+    FOR EACH ROW                      -- для каждой новой строки
+    WHEN (new.level_log = 'ERROR')    -- уровень логгирования должен быть ERROR
+DECLARE
+    PRAGMA AUTONOMOUS_TRANSACTION;
+BEGIN
+    -- Вставка в таблицу log_error
+    insert into log_error values (:new.time_log, :new.level_log, :new.program_name, :new.procedure_name, :new.message);
+    commit;
+EXCEPTION WHEN others THEN NULL;
+END;

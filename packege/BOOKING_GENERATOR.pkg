@@ -1,0 +1,24 @@
+-- Пример Использования пакета
+/*
+BEGIN
+    -- Генерация 1000 отелей
+    BOOKING_GENERATOR.FILL_HOTEL(1000);
+    -- Генерация 1 млн событий, начиная с 01.01.19 года
+	BOOKING_GENERATOR.FILL_BOOKING(1000000, to_date('01-01-2019', 'DD-MM-YYYY'));
+	-- Генерация 1 млн событий, начиная с 01.01.19 года по 01.10.19
+	BOOKING_GENERATOR.FILL_BOOKING_BY_PERIOD(1000000, to_date('01-01-2019', 'DD-MM-YYYY'), to_date('01-10-2019', 'DD-MM-YYYY'));
+	-- Генерация 100 записей в день в течение 2 дней с последнего дня, который есть в таблице booking
+	BOOKING_GENERATOR.FILL_BOOKING_FOR_JOB(100, 2)
+    -- Увеличение кол-ва конмат на 1 для первых 100 отелей
+	BOOKING_GENERATOR.CHANGE_ROW_IN_HOTEL(100);
+END;
+*/
+
+-- Объявление пакета
+CREATE OR REPLACE PACKAGE BOOKING_GENERATOR IS
+    PROCEDURE FILL_HOTEL(count_hotels IN NUMBER);
+    PROCEDURE FILL_BOOKING_BY_PERIOD (count_booking IN NUMBER, start_time IN DATE, end_time IN DATE);
+	PROCEDURE FILL_BOOKING(count_booking IN NUMBER, start_time IN DATE);
+	PROCEDURE CHANGE_ROW_IN_HOTEL(count_to_change IN NUMBER);
+	PROCEDURE FILL_BOOKING_FOR_JOB(count_booking_per_day IN NUMBER, days IN NUMBER);
+END BOOKING_GENERATOR;

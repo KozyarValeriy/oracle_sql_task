@@ -1,0 +1,11 @@
+BEGIN
+    DBMS_SCHEDULER.CREATE_JOB(
+        JOB_NAME => 'fill_booking_job',
+        JOB_TYPE => 'PLSQL_BLOCK',
+        JOB_ACTION => 'BEGIN kozyar.BOOKING_GENERATOR.FILL_BOOKING_FOR_JOB(280000, 1);  END;',
+        START_DATE => SYSTIMESTAMP,
+        REPEAT_INTERVAL => 'FREQ=MINUTELY; INTERVAL=2',
+        END_DATE => SYSTIMESTAMP + INTERVAL '12' HOUR,
+        COMMENTS => 'Insert new data into booking table',
+        ENABLED => TRUE);
+END;
