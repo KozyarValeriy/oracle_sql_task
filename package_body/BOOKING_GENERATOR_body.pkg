@@ -272,11 +272,11 @@ CREATE OR REPLACE PACKAGE BODY BOOKING_GENERATOR IS
         procedure_name              VARCHAR2(100) := 'FILL_BOOKING';
         message                     VARCHAR2(1000);
 	BEGIN
-	    -- Разделям весь объем на порции по 5 млн, чтобы делать commit каждые 5 млн
-	    row_count := 5000000;
-	    -- Получаем кол-во шагов по 5 млн
+	    -- Разделям весь объем на порции по 3 млн, чтобы делать commit каждые 3 млн
+	    row_count := 3000000;
+	    -- Получаем кол-во шагов по 3 млн
 	    count_step := trunc(count_booking / row_count);
-	    -- Остаток, если число не делится без остатка на 5 млн или число меньше 5 млн
+	    -- Остаток, если число не делится без остатка на 5 млн или число меньше 3 млн
         rest := MOD(count_booking, row_count);
         -- Получаем всего шагов для исходного кол-ва
 	    select (SYSDATE - start_time) / count_booking into step from dual;
