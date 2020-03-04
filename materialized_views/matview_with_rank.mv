@@ -1,0 +1,37 @@
+-- Удаление всех журналов и MV
+BEGIN
+    EXECUTE IMMEDIATE 'drop MATERIALIZED VIEW matview_with_rank';
+EXCEPTION WHEN others THEN NULL;
+END;
+
+
+-- Создаём материализованное представление
+CREATE MATERIALIZED VIEW matview_with_rank
+    BUILD IMMEDIATE
+    REFRESH ON COMMIT COMPLETE
+    AS
+        select
+            h.hotel_name hotel,
+            c.country_name country,
+            b.arrival_date,
+            DENSE_RANK() OVER (PARTITION BY c.country_name ORDER BY h.hotel_name) rank
+        from hotel h, country c, booking b
+        where c.country_id = h.country_id and b.hotel_id = h.hotel_id;
+
+--declare
+--    TYPE command_list IS VARRAY(4) OF VARCHAR2(100);
+--    command  				command_list := command_list();
+--BEGIN
+--    command.EXTEND(4);
+--    command(1) := 'drop MATERIALIZED VIEW matview_with_rank';
+--    command(2) := 'drop MATERIALIZED VIEW LOG ON hotel';
+--    command(3) := 'drop MATERIALIZED VIEW LOG ON country';
+--    command(4) := 'drop MATERIALIZED VIEW LOG ON booking';
+--    FOR i IN 1..command.count LOOP
+--        BEGIN
+--            EXECUTE IMMEDIATE command(i);
+--        EXCEPTION WHEN others THEN NULL;
+--        END;
+--    END LOOP;
+--EXCEPTION WHEN others THEN NULL;
+--END;

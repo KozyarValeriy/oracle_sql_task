@@ -1,11 +1,14 @@
+-- Job для заполнения таблицы событий
+-- Каждые 5 минут добавляет 4 дня, в каждом из которых 275000 записей
+
 BEGIN
     DBMS_SCHEDULER.CREATE_JOB(
         JOB_NAME => 'fill_booking_job',
         JOB_TYPE => 'PLSQL_BLOCK',
-        JOB_ACTION => 'BEGIN kozyar.BOOKING_GENERATOR.FILL_BOOKING_FOR_JOB(280000, 1);  END;',
+        JOB_ACTION => 'BEGIN kozyar.BOOKING_GENERATOR.FILL_BOOKING_FOR_JOB(275000, 4);  END;',
         START_DATE => SYSTIMESTAMP,
-        REPEAT_INTERVAL => 'FREQ=MINUTELY; INTERVAL=2',
-        END_DATE => SYSTIMESTAMP + INTERVAL '12' HOUR,
+        REPEAT_INTERVAL => 'FREQ=MINUTELY; INTERVAL=5',
+        END_DATE => SYSTIMESTAMP + INTERVAL '8' HOUR,
         COMMENTS => 'Insert new data into booking table',
         ENABLED => TRUE);
 END;
