@@ -310,7 +310,7 @@ CREATE OR REPLACE PACKAGE BODY BOOKING_GENERATOR IS
         procedure_name              VARCHAR2(100) := 'FILL_BOOKING_FOR_JOB';
         message                     VARCHAR2(1000);
 	BEGIN
-	    select max(arrival_date) + 1 into date_by_step from booking;
+	    select trunc(max(arrival_date)) + 1 into date_by_step from booking;
 	    FOR i in 1..days LOOP
 		    FILL_BOOKING_BY_PERIOD(count_booking_per_day, date_by_step, date_by_step + 1);
 		    GET_NEXT_DATE(1, date_by_step);
