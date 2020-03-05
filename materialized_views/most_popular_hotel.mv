@@ -1,0 +1,53 @@
+-- Удаление всех журналов и MV
+declare
+    TYPE command_list IS VARRAY(5) OF VARCHAR2(100);
+    command  			command_list := command_list();
+BEGIN
+    command.EXTEND(5);
+    command(1) := 'drop MATERIALIZED VIEW most_popular_hotel';
+    command(2) := 'drop MATERIALIZED VIEW most_popular_hotel_main';
+    command(3) := 'drop MATERIALIZED VIEW LOG ON hotel';
+    command(4) := 'drop MATERIALIZED VIEW LOG ON country';
+    command(5) := 'drop MATERIALIZED VIEW LOG ON booking';
+    FOR i IN 1..command.count LOOP
+        BEGIN
+            EXECUTE IMMEDIATE command(i);
+        EXCEPTION WHEN others THEN NULL;
+        END;
+    END LOOP;
+EXCEPTION WHEN others THEN NULL;
+END;
+
+-- Создаем журналы для matview с методом fast
+CREATE MATERIALIZED VIEW LOG ON hotel WITH
+    ROWID, SEQUENCE (hotel_name, country_id), primary key INCLUDING NEW VALUES;
+
+CREATE MATERIALIZED VIEW LOG ON country WITH
+    ROWID, SEQUENCE (country_name), primary key INCLUDING NEW VALUES;
+
+CREATE MATERIALIZED VIEW LOG ON booking WITH
+    ROWID, SEQUENCE (hotel_id, adults), primary key INCLUDING NEW VALUES;
+
+-- matview с быстрым обновлением для
+CREATE MATERIALIZED VIEW most_popular_hotel
+    BUILD IMMEDIATE
+    REFRESH FAST ON COMMIT
+    AS
+        select
+            c.country_name country,
+            h.hotel_name hotel,
+            sum(b.adults) max_adults
+        from hotel h, country c, booking b
+        where c.country_id = h.country_id and b.hotel_id = h.hotel_id
+        group by c.country_name, h.hotel_name;
+
+CREATE MATERIALIZED VIEW most_popular_hotel_tmp
+    BUILD IMMEDIATE
+    REFRESH COMPLETE ON COMMIT
+    AS
+        select
+            country,
+            hotel,
+            max_adults,
+            DENSE_RANK() OVER (PARTITION BY country ORDER BY max_adults desc) rank
+        from most_popular_hotel;
